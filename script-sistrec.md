@@ -10,7 +10,7 @@ En esta memoria se documenta el desarrollo de la práctica del bloque de sistema
 
 ---
 
-## Paso 1: Descarga y extracción del dataset
+## Paso 1: Descarga y extracción del dataset 
 ### Descripción
 En este paso, se descarga el dataset de la URL proporcionada, se guarda localmente y se descomprime para obtener el archivo `ratings.csv`. Este archivo contiene las valoraciones de los usuarios sobre diversas películas.
 
