@@ -74,4 +74,112 @@ Representamos en un diagrama de barras la cantidad de veces que se ha dado cada 
 
 Podemos observar que las puntuaciones más usadas varían entre 3 y 4. Esto nos indica que los usuarios tienden a valorar productos de forma "neutra", dado que los valores entre 3 y 4 son valores correctos al nivel de satisfacción tanto de usuario como de ítem.
 
-## Conclusión
+## Paso 7: Creación de un objeto `surprise.Dataset` y validación cruzada con 5 folds
+
+### Descripción
+
+Se crea un objeto `surprise.Dataset` a partir del DataFrame y se realiza validación cruzada con 5 folds utilizando la función `set_my_folds`.
+
+### Análisis del Resultado
+
+1. **Creación del Dataset**: Convierte el DataFrame en un formato compatible con Surprise para usar sus algoritmos.
+2. **Validación Cruzada con 5 Folds**: Evalúa el modelo en 5 particiones diferentes, entrenando y probando en cada una.
+3. **Uso del parámetro `shuffle=True`**: Asegura que los datos se mezclen aleatoriamente antes de dividirse en los folds.
+
+## Paso 8: GridSearchCV para determinar los mejores hiperparámetros de KNNWithZScore
+
+### Descripción
+
+En este paso, realizamos una búsqueda de hiperparámetros utilizando `GridSearchCV` para encontrar la mejor configuración de los parámetros `k` y `min_k` para el modelo **KNNWithZScore**. La búsqueda se realiza utilizando la métrica de similitud **Pearson** y el criterio de evaluación **MAE (Mean Absolute Error)**. La validación cruzada se realiza con 3 folds (cv=3) y se utiliza el parámetro `n_jobs=-1` para aprovechar todos los núcleos de la CPU.
+
+Los valores de los hiperparámetros `k` y `min_k` que se exploran son:
+
+- `k`: [25, 50, 75]
+- `min_k`: [1, 3, 5]
+
+### Análisis del Resultado
+
+El valor de **MAE** más bajo indica una mejor capacidad de predicción.
+
+#### Combinación óptima de hiperparámetros
+
+Tras realizar el proceso de `GridSearchCV`, los mejores hiperparámetros encontrados para el modelo **KNNWithZScore** fueron:
+
+- `k = 50`
+- `min_k = 3`
+
+Estos valores resultaron en el **MAE más bajo** (aproximadamente 0.6438 en el fold 3). Esta combinación fue la que mejor desempeño tuvo en todos los folds probados, lo que indica que es una configuración robusta y generalizable.
+
+#### Conclusión Final
+
+La combinación de parámetros **k = 50** y **min_k = 3** es la mejor opción para el modelo **KNNWithZScore**, ya que proporciona el menor **MAE** en todos los folds evaluados. Este conjunto de parámetros debe ser utilizado consistentemente en todos los subconjuntos de test en los ejercicios 8 y 9, tal como se requiere en el enunciado.
+
+Esta combinación de parámetros será utilizada en todos los subconjuntos de test de los ejercicios 8 y 9.
+
+
+### Resultados de la búsqueda de hiperparámetros para KNNWithZScore:
+
+| **fold** | **mae**    | **params**               | **test_mae** |
+|----------|------------|--------------------------|--------------|
+| 0        | 0.659112   | {'k': 50, 'min_k': 1}     | 0.650623     |
+| 1        | 0.658839   | {'k': 75, 'min_k': 3}     | 0.648446     |
+| 2        | 0.658385   | {'k': 75, 'min_k': 5}     | 0.649056     |
+| 3        | 0.658440   | {'k': 75, 'min_k': 3}     | 0.647342     |
+| 4        | 0.659804   | {'k': 75, 'min_k': 3}     | 0.646750     |
+
+
+
+## Paso 9: Comparación de algoritmos con la métrica MAE
+
+### Descripción
+
+En este paso se comparan los tres algoritmos de recomendación en función de su capacidad para predecir las valoraciones, utilizando la métrica **MAE (Mean Absolute Error)**:
+
+### Análisis del Resultado
+
+#### 1. Comparación de los MAE
+
+Al analizar los valores de **MAE** de cada algoritmo en los 5 folds, obtenemos los siguientes resultados (promedios):
+
+- **NormalPredictor**: MAE promedio de 1.109.
+- **KNNWithZScore**: MAE promedio de 0.648.
+- **SVD**: MAE promedio de 0.648.
+
+#### 2. Análisis de los Resultados
+
+- **NormalPredictor**: Este algoritmo utiliza un enfoque aleatorio para predecir las valoraciones de los usuarios, lo que genera un **MAE bastante alto** en comparación con los otros dos algoritmos. Esto se debe a que la predicción aleatoria rara vez coincide con las valoraciones reales de los usuarios.
+
+- **KNNWithZScore**: Este algoritmo, utilizando la métrica de similitud **Pearson** y los mejores hiperparámetros encontrados en el proceso de validación, muestra un **MAE bajo y consistente** a lo largo de los 5 folds. Esto indica que el modelo tiene un buen rendimiento en general y es capaz de hacer predicciones precisas basándose en las similitudes entre usuarios.
+
+- **SVD**: El algoritmo basado en **descomposición en valores singulares** (SVD) también muestra un **MAE similar al de KNNWithZScore**. Ambos algoritmos tienen un rendimiento comparable, ya que ambas técnicas están basadas en la identificación de patrones y relaciones en las valoraciones de los usuarios.
+
+#### 3. Conclusión
+
+- **El mejor algoritmo**: Tanto **KNNWithZScore** como **SVD** tienen un rendimiento similar en cuanto al **MAE**, con un valor promedio de **0.648**. Sin embargo, el **KNNWithZScore** tiene una ligera ventaja en términos de simplicidad y rapidez de cálculo, ya que SVD involucra un proceso de descomposición matricial más complejo.
+  
+- **Justificación**: El rendimiento de **KNNWithZScore** es ligeramente más favorable en términos de consistencia y facilidad de implementación. Aunque SVD también es efectivo, el **KNNWithZScore** es más directo en su enfoque de similitud entre usuarios y da resultados comparables sin la necesidad de un proceso de descomposición compleja. **NormalPredictor** claramente se queda atrás debido a su naturaleza aleatoria.
+
+- **NormalPredictor**: MAE = 1.109 (alto).
+- **KNNWithZScore**: MAE = 0.648 (bajo y consistente).
+- **SVD**: MAE = 0.648 (bajo, pero más complejo).
+
+**Conclusión**: **KNNWithZScore** es el mejor algoritmo en este caso debido a su bajo MAE y su mayor eficiencia computacional en comparación con **SVD**.
+
+### Resultados de MAE para los algoritmos comparados:
+
+| **fold** | **NormalPredictor_MAE** | **KNNWithZScore_MAE** | **SVD_MAE** |
+|----------|--------------------------|-----------------------|-------------|
+| 0        | 1.111199                 | 0.651515              | 0.653589    |
+| 1        | 1.107600                 | 0.649001              | 0.649431    |
+| 2        | 1.107057                 | 0.643029              | 0.644146    |
+| 3        | 1.113336                 | 0.650528              | 0.648360    |
+| 4        | 1.105283                 | 0.648996              | 0.649866    |
+
+**MAE Promedio**:
+- **NormalPredictor**: 1.109
+- **KNNWithZScore**: 0.649
+- **SVD**: 0.649
+
+
+# Conclusión
+

@@ -5,7 +5,7 @@ import requests
 import zipfile as zipfile
 import pandas as pd
 import matplotlib.pyplot as plt
-from surprise import Dataset, Reader, KNNWithZScore, accuracy
+from surprise import Dataset, Reader, KNNWithZScore, accuracy, NormalPredictor, SVD
 from surprise.model_selection import GridSearchCV
 import copy
 
@@ -196,9 +196,7 @@ def set_my_folds(dataset, nfolds = 5, shuffle = True):
     return folds
 
 # Función que entrena y evalúa el modelo KNNWithZScore con GridSearchCV en cada fold
-def evaluate_knn_with_gridsearch(df, knn_param_grid, nfolds=5):
-    surprise_data = create_surprise_dataset(df)
-    folds = set_my_folds(surprise_data, nfolds)
+def evaluate_knn_with_gridsearch(folds, knn_param_grid):
 
     results = []
 
@@ -237,6 +235,67 @@ def evaluate_knn_with_gridsearch(df, knn_param_grid, nfolds=5):
     print(df_results)
 
 
+# Función que evalúa los tres algoritmos: NormalPredictor, KNNWithZScore, y SVD usando los folds existentes
+def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
+    results = []
+
+    for i, (train_ratings, test_ratings) in enumerate(folds):
+        print(f'Fold: {i}')
+        
+        # Convertir las calificaciones en conjuntos de entrenamiento y prueba
+        trainset = surprise_data.construct_trainset(train_ratings)
+        testset = surprise_data.construct_testset(test_ratings)
+
+        # Evaluar NormalPredictor
+        np_model = NormalPredictor()
+        np_model.fit(trainset)
+        np_predictions = np_model.test(testset)
+        np_mae = accuracy.mae(np_predictions, verbose=False)
+
+        # Evaluar KNNWithZScore con GridSearchCV
+        knn_gs = GridSearchCV(KNNWithZScore, knn_param_grid, measures=["mae"], cv=3, n_jobs=-1)
+        
+        # Usar el Dataset completo para el GridSearchCV (en lugar de solo el Trainset)
+        knn_gs.fit(surprise_data)  # Ajusta el Dataset completo aquí
+
+        best_mae_knn = knn_gs.best_score["mae"]
+        best_params_knn = knn_gs.best_params["mae"]
+        print(f'Grid search > KNNWithZScore mae={best_mae_knn:.3f}, cfg={best_params_knn}')
+
+        knn_algo = knn_gs.best_estimator["mae"]
+        knn_algo.fit(trainset)
+        knn_predictions = knn_algo.test(testset)
+        knn_mae = accuracy.mae(knn_predictions, verbose=False)
+
+        # Evaluar SVD con n_factors=25
+        svd_algo = SVD(n_factors=25)
+        svd_algo.fit(trainset)
+        svd_predictions = svd_algo.test(testset)
+        svd_mae = accuracy.mae(svd_predictions, verbose=False)
+
+        # Guardar los resultados
+        results.append({
+            'fold': i,
+            'NormalPredictor_MAE': np_mae,
+            'KNNWithZScore_MAE': knn_mae,
+            'SVD_MAE': svd_mae
+        })
+    
+    # Convertir los resultados en un DataFrame para mostrar la tabla
+    results_df = pd.DataFrame(results)
+    print("\nResultados finales:")
+    print(results_df)
+
+    # Calcular el MAE promedio de cada algoritmo
+    avg_mae_np = results_df['NormalPredictor_MAE'].mean()
+    avg_mae_knn = results_df['KNNWithZScore_MAE'].mean()
+    avg_mae_svd = results_df['SVD_MAE'].mean()
+
+    print(f"\nMAE Promedio:\nNormalPredictor: {avg_mae_np:.3f}\nKNNWithZScore: {avg_mae_knn:.3f}\nSVD: {avg_mae_svd:.3f}")
+    
+    return results_df, avg_mae_np, avg_mae_knn, avg_mae_svd
+
+
 if __name__ == "__main__":
     URL = "http://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
     ZIP_PATH = "ml-latest-small.zip"
@@ -260,16 +319,16 @@ if __name__ == "__main__":
     df = remove_movies_with_low_ratings(df, rating_limit)
     df = remove_users_with_low_ratings(df, rating_limit)
 
-    # Paso 4
-    plot_user_histogram(df)
-    plot_movie_histogram(df)
-
-    # Paso 5
-    plot_user_rating_mean_histogram(df)
-    plot_movie_rating_mean_histogram(df)
-
-    # Paso 6
-    plot_rating_distribution(df)
+    # # Paso 4
+    # plot_user_histogram(df)
+    # plot_movie_histogram(df)
+    #
+    # # Paso 5
+    # plot_user_rating_mean_histogram(df)
+    # plot_movie_rating_mean_histogram(df)
+    #
+    # # Paso 6
+    # plot_rating_distribution(df)
 
     # Paso 7
     surprise_data = create_surprise_dataset(df)
@@ -282,6 +341,11 @@ if __name__ == "__main__":
     }
 
     # Llamar a la función para evaluar el modelo
-    evaluate_knn_with_gridsearch(df, knn_param_grid)
+    evaluate_knn_with_gridsearch(kf, knn_param_grid)
 
+    # Definir los mejores parámetros de KNNWithZScore obtenidos en el GridSearchCV
+    knn_best_params = {'k': 50, 'min_k': 3}
+
+    # Evaluar los algoritmos
+    results_df, avg_mae_np, avg_mae_knn, avg_mae_svd = evaluate_algorithms_comparison(surprise_data, kf, knn_param_grid)
 
