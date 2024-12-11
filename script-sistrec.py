@@ -1,9 +1,13 @@
 import numpy as np
+import random
 import os
 import requests
 import zipfile as zipfile
 import pandas as pd
 import matplotlib.pyplot as plt
+from surprise import Dataset, Reader, KNNWithZScore, accuracy
+from surprise.model_selection import GridSearchCV
+import copy
 
 
 # Definir una semilla para reproducibilidad del código 
@@ -161,6 +165,78 @@ def plot_rating_distribution(df):
     plt.show()
 
 
+# Crear el conjunto de datos de Surprise a partir del DataFrame
+def create_surprise_dataset(df):
+    print("\nCreando el conjunto de datos de Surprise...")
+    reader = Reader(rating_scale=(0.5, 5))
+    data = Dataset.load_from_df(df[['userId', 'movieId', 'rating']], reader)
+    return data
+
+# Definición de los folds
+def set_my_folds(dataset, nfolds = 5, shuffle = True):
+    
+    raw_ratings = dataset.raw_ratings
+    if (shuffle): raw_ratings = random.sample(raw_ratings, len(raw_ratings))
+
+    chunk_size = int(1/nfolds * len(raw_ratings))
+    thresholds = [chunk_size * x for x in range(0,nfolds)]
+    
+    print("set_my_folds> len(raw_ratings): %d" % len(raw_ratings))    
+    
+    folds = []
+    
+    for th in thresholds:                
+        test_raw_ratings = raw_ratings[th: th + chunk_size]
+        train_raw_ratings = raw_ratings[:th] + raw_ratings[th + chunk_size:]
+    
+        print("set_my_folds> threshold: %d, len(train_raw_ratings): %d, len(test_raw_ratings): %d" % (th, len(train_raw_ratings), len(test_raw_ratings)))
+        
+        folds.append((train_raw_ratings,test_raw_ratings))
+       
+    return folds
+
+# Función que entrena y evalúa el modelo KNNWithZScore con GridSearchCV en cada fold
+def evaluate_knn_with_gridsearch(df, knn_param_grid, nfolds=5):
+    surprise_data = create_surprise_dataset(df)
+    folds = set_my_folds(surprise_data, nfolds)
+
+    results = []
+
+    for i, (train_ratings, test_ratings) in enumerate(folds):
+        print(f'Fold: {i}')
+        
+        knn_gs = GridSearchCV(KNNWithZScore, knn_param_grid, measures=["mae"], cv=3, n_jobs=-1)
+        
+        train_dataset = copy.deepcopy(surprise_data)
+        train_dataset.raw_ratings = train_ratings
+        knn_gs.fit(train_dataset)
+        
+        best_mae = knn_gs.best_score["mae"]
+        best_params = knn_gs.best_params["mae"]
+        print(f'Grid search > mae={best_mae:.3f}, cfg={best_params}')
+        
+        results.append({'fold': i, 'mae': best_mae, 'params': best_params})
+        
+        knn_algo = knn_gs.best_estimator["mae"]
+        
+        knn_algo.fit(train_dataset.build_full_trainset())
+        
+        test_dataset = copy.deepcopy(surprise_data)
+        test_dataset.raw_ratings = test_ratings
+        test_set = test_dataset.construct_testset(raw_testset=test_ratings)
+        
+        knn_predictions = knn_algo.test(test_set)
+        
+        test_mae = accuracy.mae(knn_predictions, verbose=True)
+        
+        results[-1]['test_mae'] = test_mae
+
+    df_results = pd.DataFrame(results)
+    
+    print("\nResultados finales:")
+    print(df_results)
+
+
 if __name__ == "__main__":
     URL = "http://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
     ZIP_PATH = "ml-latest-small.zip"
@@ -194,5 +270,18 @@ if __name__ == "__main__":
 
     # Paso 6
     plot_rating_distribution(df)
+
+    # Paso 7
+    surprise_data = create_surprise_dataset(df)
+    kf = set_my_folds(surprise_data, nfolds=5)
+
+    # Parámetros para el GridSearchCV de SVD
+    knn_param_grid = {
+        'k': [25, 50, 75],
+        'min_k': [1, 3, 5]
+    }
+
+    # Llamar a la función para evaluar el modelo
+    evaluate_knn_with_gridsearch(df, knn_param_grid)
 
 
