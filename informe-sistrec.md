@@ -155,15 +155,11 @@ Al analizar los valores de **MAE** de cada algoritmo en los 5 folds, obtenemos l
 
 #### 3. Conclusión
 
-- **El mejor algoritmo**: Tanto **KNNWithZScore** como **SVD** tienen un rendimiento similar en cuanto al **MAE**, con un valor promedio de **0.648**. Sin embargo, el **KNNWithZScore** tiene una ligera ventaja en términos de simplicidad y rapidez de cálculo, ya que SVD involucra un proceso de descomposición matricial más complejo.
-  
-- **Justificación**: El rendimiento de **KNNWithZScore** es ligeramente más favorable en términos de consistencia y facilidad de implementación. Aunque SVD también es efectivo, el **KNNWithZScore** es más directo en su enfoque de similitud entre usuarios y da resultados comparables sin la necesidad de un proceso de descomposición compleja. **NormalPredictor** claramente se queda atrás debido a su naturaleza aleatoria.
-
 - **NormalPredictor**: MAE = 1.109 (alto).
 - **KNNWithZScore**: MAE = 0.648 (bajo y consistente).
 - **SVD**: MAE = 0.648 (bajo, pero más complejo).
 
-**Conclusión**: **KNNWithZScore** es el mejor algoritmo en este caso debido a su bajo MAE y su mayor eficiencia computacional en comparación con **SVD**.
+Ambos, KNNWithZScore y SVD, se comportan mucho mejor que NormalPredictor según la métrica MAE. La diferencia entre KNNWithZScore y SVD es insignificante, por lo que cualquiera de los dos podría considerarse el mejor dependiendo de la implementación y del fold evaluado.
 
 ### Resultados de MAE para los algoritmos comparados:
 
@@ -176,10 +172,40 @@ Al analizar los valores de **MAE** de cada algoritmo en los 5 folds, obtenemos l
 | 4        | 1.105283                 | 0.648996              | 0.649866    |
 
 **MAE Promedio**:
-- **NormalPredictor**: 1.109
+- **NormalPredictor**: 1.110
 - **KNNWithZScore**: 0.649
 - **SVD**: 0.649
 
 
-# Conclusión
+## Paso 10: Comparación de recomendaciones con tamaños 1, 2, 5 y 10 y umbral igual a 4
+
+### Descripción
+
+En este paso se comparan los 3 algoritmos y los mismos conjuntos para observar cual es el rendimiento y el grado de recomendación de cada uno de ellos.
+
+### Análisis del Resultado
+
+El gráfico de la **Precision-Recall Curve at k** muestra que:
+
+- **NormalPredictor** tiene tanto precision como recall significativamente más bajos que los otros algoritmos, lo cual es esperado ya que sus predicciones son aleatorias.
+- **SVD** supera ligeramente a **KNNWithZScore** en precision en la mayoría de los casos (especialmente para listas más pequeñas como tamaño 1), lo que sugiere que SVD es más efectivo para identificar elementos relevantes de manera más precisa.
+- **KNNWithZScore**, aunque cercano a SVD, muestra un comportamiento más consistente en listas de tamaños mayores (5 y 10), con una leve mejora en recall.
+
+### Conclusión: 
+- Si el objetivo es maximizar la **precisión**, **SVD** es el mejor algoritmo.
+- Si el objetivo es un balance entre precisión y recall en listas de mayor tamaño, **KNNWithZScore** podría ser preferido.
+
+# Resumen de la práctica
+En resumen, los resultados clave del análisis son:
+
+1. **KNNWithZScore** y **SVD** tienen un desempeño casi idéntico en términos de **MAE** (Mean Absolute Error), ambos mostrando un MAE promedio de aproximadamente **0.648**. Esto indica que ambos algoritmos son muy efectivos para hacer predicciones precisas basadas en las valoraciones de los usuarios.
+
+2. **KNNWithZScore** es ligeramente más eficiente en **recall** cuando se trabaja con listas largas, mientras que **SVD** destaca en **precisión**. Esto sugiere que **KNNWithZScore** podría ser preferido cuando se prioriza la cobertura de recomendaciones, mientras que **SVD** sería más adecuado cuando se busca asegurar la calidad de las predicciones.
+
+3. **NormalPredictor**, que utiliza un enfoque aleatorio, tiene un rendimiento mucho peor con un MAE promedio de **1.109**, indicando que su capacidad predictiva es limitada en comparación con los otros dos modelos.
+
+### Conclusiones:
+
+- **Mejor en MAE**: **KNNWithZScore**, aunque **SVD** es casi igual.
+- **Mejor para recomendaciones**: **SVD** en términos de precisión y **KNNWithZScore** en términos de recall para listas largas.
 

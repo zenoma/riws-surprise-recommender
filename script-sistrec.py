@@ -6,8 +6,9 @@ import zipfile as zipfile
 import pandas as pd
 import matplotlib.pyplot as plt
 from surprise import Dataset, Reader, KNNWithZScore, accuracy, NormalPredictor, SVD
-from surprise.model_selection import GridSearchCV
+from surprise.model_selection import GridSearchCV, cross_validate
 import copy
+from collections import defaultdict
 
 
 # Definir una semilla para reproducibilidad del código 
@@ -245,11 +246,13 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
         trainset = surprise_data.construct_trainset(train_ratings)
         testset = surprise_data.construct_testset(test_ratings)
 
+        # Parámetros por defecto del NormalPredictor
         np_model = NormalPredictor()
         np_model.fit(trainset)
         np_predictions = np_model.test(testset)
         np_mae = accuracy.mae(np_predictions, verbose=False)
 
+        # Parámetros definidos con el Grid Search (knn_param_grid)
         knn_gs = GridSearchCV(KNNWithZScore, knn_param_grid, measures=["mae"], cv=3, n_jobs=-1)
         
         knn_gs.fit(surprise_data)  
@@ -263,6 +266,7 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
         knn_predictions = knn_algo.test(testset)
         knn_mae = accuracy.mae(knn_predictions, verbose=False)
 
+        # Parámetros establecido a n_factor = 25
         svd_algo = SVD(n_factors=25)
         svd_algo.fit(trainset)
         svd_predictions = svd_algo.test(testset)
@@ -287,6 +291,92 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
     print(f"\nMAE Promedio:\nNormalPredictor: {avg_mae_np:.3f}\nKNNWithZScore: {avg_mae_knn:.3f}\nSVD: {avg_mae_svd:.3f}")
     
     return results_df, avg_mae_np, avg_mae_knn, avg_mae_svd
+
+
+# Función auxiliar 
+def precision_recall_at_k(predictions, k=10, threshold=4):
+
+    user_est_true = defaultdict(list)
+    for uid, _, true_r, est, _ in predictions:
+        user_est_true[uid].append((est, true_r))
+
+    precisions = dict()
+    recalls = dict()
+    for uid, user_ratings in user_est_true.items():
+
+        user_ratings.sort(key=lambda x: x[0], reverse=True)
+
+        n_rel = sum((true_r >= threshold) for (_, true_r) in user_ratings)
+
+        n_rec_k = sum((est >= threshold) for (est, _) in user_ratings[:k])
+
+        n_rel_and_rec_k = sum(
+            ((true_r >= threshold) and (est >= threshold))
+            for (est, true_r) in user_ratings[:k]
+        )
+
+        precisions[uid] = n_rel_and_rec_k / n_rec_k if n_rec_k != 0 else 0
+
+        recalls[uid] = n_rel_and_rec_k / n_rel if n_rel != 0 else 0
+
+    return precisions, recalls
+
+# Mostrar una única gráfica con el rendimiento de los 3 algoritmos
+def plot_precision_recall_curve_all(predictions_dict, k_values, threshold):
+    plt.figure(figsize=(10, 7))
+
+    for algo_name, predictions in predictions_dict.items():
+        avg_precisions = []
+        avg_recalls = []
+
+        for k in k_values:
+            precisions, recalls = precision_recall_at_k(predictions, k, threshold)
+
+            avg_precision = sum(prec for prec in precisions.values()) / len(precisions)
+            avg_recall = sum(rec for rec in recalls.values()) / len(recalls)
+
+            avg_precisions.append(avg_precision)
+            avg_recalls.append(avg_recall)
+
+        plt.plot(avg_recalls, avg_precisions, marker='o', label=algo_name)
+
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Precision-Recall Curve at k')
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+# Evalúa diferentes algoritmos y muestra una única gráfica de Precision-Recall
+def evaluate_algorithms_and_plot(surprise_data, folds, k_values=[1, 2, 5, 10], threshold=4):
+    predictions_dict = {}
+
+    for i, (train_ratings, test_ratings) in enumerate(folds):
+        print(f'Evaluando en Fold {i + 1}...')
+
+        # Crear los conjuntos de datos para Surprise
+        trainset = surprise_data.construct_trainset(train_ratings)
+        testset = surprise_data.construct_testset(test_ratings)
+
+        # Evaluar NormalPredictor
+        np_model = NormalPredictor()
+        np_model.fit(trainset)
+        predictions_np = np_model.test(testset)
+        predictions_dict['NormalPredictor'] = predictions_dict.get('NormalPredictor', []) + predictions_np
+
+        # Evaluar KNNWithZScore
+        knn_model = KNNWithZScore(sim_options={'name': 'cosine', 'user_based': False})
+        knn_model.fit(trainset)
+        predictions_knn = knn_model.test(testset)
+        predictions_dict['KNNWithZScore'] = predictions_dict.get('KNNWithZScore', []) + predictions_knn
+
+        # Evaluar SVD
+        svd_model = SVD()
+        svd_model.fit(trainset)
+        predictions_svd = svd_model.test(testset)
+        predictions_dict['SVD'] = predictions_dict.get('SVD', []) + predictions_svd
+
+    plot_precision_recall_curve_all(predictions_dict, k_values, threshold)
 
 
 if __name__ == "__main__":
@@ -333,12 +423,15 @@ if __name__ == "__main__":
         'min_k': [1, 3, 5]
     }
 
-    # Llamar a la función para evaluar el modelo
+    # Paso 8
     evaluate_knn_with_gridsearch(kf, knn_param_grid)
 
     # Definir los mejores parámetros de KNNWithZScore obtenidos en el GridSearchCV
     knn_best_params = {'k': 50, 'min_k': 3}
 
-    # Evaluar los algoritmos
+    # Paso 9
     results_df, avg_mae_np, avg_mae_knn, avg_mae_svd = evaluate_algorithms_comparison(surprise_data, kf, knn_param_grid)
+    
+    # Paso 10
+    evaluate_algorithms_and_plot(surprise_data, kf)
 
