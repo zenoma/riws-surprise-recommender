@@ -242,21 +242,17 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
     for i, (train_ratings, test_ratings) in enumerate(folds):
         print(f'Fold: {i}')
         
-        # Convertir las calificaciones en conjuntos de entrenamiento y prueba
         trainset = surprise_data.construct_trainset(train_ratings)
         testset = surprise_data.construct_testset(test_ratings)
 
-        # Evaluar NormalPredictor
         np_model = NormalPredictor()
         np_model.fit(trainset)
         np_predictions = np_model.test(testset)
         np_mae = accuracy.mae(np_predictions, verbose=False)
 
-        # Evaluar KNNWithZScore con GridSearchCV
         knn_gs = GridSearchCV(KNNWithZScore, knn_param_grid, measures=["mae"], cv=3, n_jobs=-1)
         
-        # Usar el Dataset completo para el GridSearchCV (en lugar de solo el Trainset)
-        knn_gs.fit(surprise_data)  # Ajusta el Dataset completo aquí
+        knn_gs.fit(surprise_data)  
 
         best_mae_knn = knn_gs.best_score["mae"]
         best_params_knn = knn_gs.best_params["mae"]
@@ -267,13 +263,11 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
         knn_predictions = knn_algo.test(testset)
         knn_mae = accuracy.mae(knn_predictions, verbose=False)
 
-        # Evaluar SVD con n_factors=25
         svd_algo = SVD(n_factors=25)
         svd_algo.fit(trainset)
         svd_predictions = svd_algo.test(testset)
         svd_mae = accuracy.mae(svd_predictions, verbose=False)
 
-        # Guardar los resultados
         results.append({
             'fold': i,
             'NormalPredictor_MAE': np_mae,
@@ -281,7 +275,6 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
             'SVD_MAE': svd_mae
         })
     
-    # Convertir los resultados en un DataFrame para mostrar la tabla
     results_df = pd.DataFrame(results)
     print("\nResultados finales:")
     print(results_df)
@@ -320,15 +313,15 @@ if __name__ == "__main__":
     df = remove_users_with_low_ratings(df, rating_limit)
 
     # # Paso 4
-    # plot_user_histogram(df)
-    # plot_movie_histogram(df)
-    #
-    # # Paso 5
-    # plot_user_rating_mean_histogram(df)
-    # plot_movie_rating_mean_histogram(df)
-    #
-    # # Paso 6
-    # plot_rating_distribution(df)
+    plot_user_histogram(df)
+    plot_movie_histogram(df)
+
+    # Paso 5
+    plot_user_rating_mean_histogram(df)
+    plot_movie_rating_mean_histogram(df)
+
+    # Paso 6
+    plot_rating_distribution(df)
 
     # Paso 7
     surprise_data = create_surprise_dataset(df)
