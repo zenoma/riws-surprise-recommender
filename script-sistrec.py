@@ -6,7 +6,7 @@ import zipfile as zipfile
 import pandas as pd
 import matplotlib.pyplot as plt
 from surprise import Dataset, Reader, KNNWithZScore, accuracy, NormalPredictor, SVD
-from surprise.model_selection import GridSearchCV, cross_validate
+from surprise.model_selection import GridSearchCV
 import copy
 from collections import defaultdict
 
@@ -251,6 +251,7 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
         np_model.fit(trainset)
         np_predictions = np_model.test(testset)
         np_mae = accuracy.mae(np_predictions, verbose=False)
+        print(f'Fold {i} > NormalPredictor > MAE: {np_mae:.3f}')
 
         # Parámetros definidos con el Grid Search (knn_param_grid)
         knn_gs = GridSearchCV(KNNWithZScore, knn_param_grid, measures=["mae"], cv=3, n_jobs=-1)
@@ -259,18 +260,20 @@ def evaluate_algorithms_comparison(surprise_data, folds, knn_param_grid):
 
         best_mae_knn = knn_gs.best_score["mae"]
         best_params_knn = knn_gs.best_params["mae"]
-        print(f'Grid search > KNNWithZScore mae={best_mae_knn:.3f}, cfg={best_params_knn}')
+        print(f'Fold {i} > Grid search > KNNWithZScore > Best MAE: {best_mae_knn:.3f}, Params: {best_params_knn}')
 
         knn_algo = knn_gs.best_estimator["mae"]
         knn_algo.fit(trainset)
         knn_predictions = knn_algo.test(testset)
         knn_mae = accuracy.mae(knn_predictions, verbose=False)
+        print(f'Fold {i} > KNNWithZScore > MAE: {knn_mae:.3f}')
 
         # Parámetros establecido a n_factor = 25
         svd_algo = SVD(n_factors=25)
         svd_algo.fit(trainset)
         svd_predictions = svd_algo.test(testset)
         svd_mae = accuracy.mae(svd_predictions, verbose=False)
+        print(f'Fold {i} > SVD > n_factors=25 > MAE: {svd_mae:.3f}')
 
         results.append({
             'fold': i,
@@ -403,7 +406,7 @@ if __name__ == "__main__":
     df = remove_users_with_low_ratings(df, rating_limit)
 
     # # Paso 4
-    plot_user_histogram(df)
+    # plot_user_histogram(df)
     plot_movie_histogram(df)
 
     # Paso 5
@@ -420,17 +423,17 @@ if __name__ == "__main__":
     # Parámetros para el GridSearchCV de SVD
     knn_param_grid = {
         'k': [25, 50, 75],
-        'min_k': [1, 3, 5]
+        'min_k': [1, 3, 5],
+        'sim_options': {'name': ['pearson'], 'user_based': [False]}
     }
-
     # Paso 8
-    evaluate_knn_with_gridsearch(kf, knn_param_grid)
+    # evaluate_knn_with_gridsearch(kf, knn_param_grid)
 
     # Definir los mejores parámetros de KNNWithZScore obtenidos en el GridSearchCV
-    knn_best_params = {'k': 50, 'min_k': 3}
+    knn_best_params = {'k': [75], 'min_k': [3]}
 
     # Paso 9
-    results_df, avg_mae_np, avg_mae_knn, avg_mae_svd = evaluate_algorithms_comparison(surprise_data, kf, knn_param_grid)
+    results_df, avg_mae_np, avg_mae_knn, avg_mae_svd = evaluate_algorithms_comparison(surprise_data, kf, knn_best_params)
     
     # Paso 10
     evaluate_algorithms_and_plot(surprise_data, kf)
